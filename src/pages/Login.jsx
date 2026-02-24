@@ -1,104 +1,185 @@
-import { useState } from 'react';
-import './Login.css';
+// src/pages/Login.jsx
+import React, { useState } from "react";
+import {
+  signInWithEmailAndPassword,
+  sendPasswordResetEmail,
+} from "firebase/auth";
+import { auth, db } from "../firebasejs/config";
+import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
+import "./Login.css";
 
 export default function Login({ onNavigate }) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resetMessage, setResetMessage] = useState("");
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    if (loading) return;
+
+    setError("");
+    setResetMessage("");
+
+    const cleanEmail = email.trim();
+
+    if (!cleanEmail || !password) {
+      return setError("Please enter email and password.");
+    }
+
     setLoading(true);
 
     try {
-      // Placeholder for Firebase authentication
-      // Replace this with actual Firebase code once firebase is installed
-      console.log('Login attempt with:', { email, password });
-      alert('Login successful ✅');
-      
-      // Navigate to dashboard or home
-      if (onNavigate) {
-        onNavigate('home');
-      } else {
-        window.location.href = 'dashboard.html';
+      // Sign in user
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        cleanEmail,
+        password
+      );
+
+      const user = userCredential.user;
+      console.log("Login successful:", user.uid);
+
+      // Update last login in Firestore
+      try {
+        const userRef = doc(db, 'users', user.uid);
+        await updateDoc(userRef, {
+          lastLogin: serverTimestamp()
+        });
+      } catch (firestoreError) {
+        console.warn("Could not update last login:", firestoreError);
+        // Continue even if Firestore update fails
       }
-    } catch (error) {
-      alert(error.message || 'Login failed');
+
+      // Redirect to dashboard - THIS IS THE KEY FIX
+      if (onNavigate) {
+        console.log("Redirecting to dashboard...");
+        onNavigate("dashboard");
+      } else {
+        console.error("onNavigate function not provided");
+        // Fallback - try to use window.location as last resort
+        window.location.href = "/dashboard";
+      }
+    } catch (err) {
+      console.error("Login error:", err);
+
+      switch (err.code) {
+        case "auth/invalid-email":
+          setError("Invalid email format.");
+          break;
+        case "auth/user-not-found":
+          setError("No account found with this email.");
+          break;
+        case "auth/wrong-password":
+          setError("Incorrect password.");
+          break;
+        case "auth/too-many-requests":
+          setError("Too many attempts. Try again later.");
+          break;
+        case "auth/network-request-failed":
+          setError("Network error. Check your internet.");
+          break;
+        case "auth/invalid-credential":
+          setError("Invalid email or password.");
+          break;
+        default:
+          setError("Login failed. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  const handleResetPassword = (e) => {
-    e.preventDefault();
-
-    if (!email.trim()) {
-      alert('Enter your email first');
-      return;
+  const handlePasswordReset = async () => {
+    if (!email) {
+      return setError("Enter your email above first.");
     }
 
-    // Placeholder for Firebase password reset
-    console.log('Password reset requested for:', email);
-    alert('Password reset email sent 📧');
+    try {
+      await sendPasswordResetEmail(auth, email.trim());
+      setResetMessage("Password reset email sent. Check your inbox.");
+      setError("");
+    } catch (err) {
+      console.error("Password reset error:", err);
+      setError("Could not send reset email. Please try again.");
+    }
   };
 
   return (
-    <main className="login-container">
-      <div className="login">
-        <div className="logo">
-          <img src="/hero.png" alt="PrimeSmsHub Logo" />
+    <div className="login-container">
+      <div className="login-card">
+        <div className="login-header">
+          <img src="/hero.png" alt="PrimeSmsHub" className="login-logo" />
+          <h1>Welcome Back 👋</h1>
+          <p>Login to your PrimeSmsHub account</p>
         </div>
 
-        <h1>Welcome back! 👏</h1>
-        <h2>Login with your account</h2>
+        {error && (
+          <div className="error-message">
+            ⚠️ {error}
+          </div>
+        )}
 
-        <form onSubmit={handleLogin}>
-          <div className="input-area">
-            <div className="input-field">
-              <label>Email</label>
-              <input
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
+        {resetMessage && (
+          <div className="success-message">
+            ✅ {resetMessage}
+          </div>
+        )}
 
-            <div className="input-field">
-              <label>Password</label>
-              <input
-                type="password"
-                placeholder="Your password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </div>
+        <form onSubmit={handleLogin} className="login-form">
+          <div className="form-group">
+            <label>Email Address</label>
+            <input
+              type="email"
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              disabled={loading}
+            />
           </div>
 
-          <div className="auth-button">
-            <button type="submit" className="btn" disabled={loading}>
-              {loading ? 'Logging in...' : 'Login'}
-            </button>
+          <div className="form-group">
+            <label>Password</label>
+            <input
+              type="password"
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              disabled={loading}
+            />
+          </div>
+
+          <div
+            className="forgot-password"
+            onClick={handlePasswordReset}
+          >
+            Forgot Password?
           </div>
 
           <button
-            type="button"
-            onClick={handleResetPassword}
-            className="reset-password-btn"
+            type="submit"
+            className="login-button"
+            disabled={loading}
           >
-            Reset Password
+            {loading ? "Logging in..." : "Login"}
           </button>
-
-          <p>
-            Don't have an account?{' '}
-            <a href="#" onClick={() => onNavigate && onNavigate('signup')}>
-              Sign Up Now
-            </a>
-          </p>
         </form>
+
+        <div className="login-footer">
+          <p>
+            Don't have an account?{" "}
+            <span
+              onClick={() => onNavigate && onNavigate('signup')}
+              className="link"
+            >
+              Sign Up
+            </span>
+          </p>
+        </div>
       </div>
-    </main>
+    </div>
   );
 }

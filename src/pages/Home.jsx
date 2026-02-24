@@ -1,4 +1,4 @@
-import Navbar from '../../Compound/Navbar';
+import Navbar from '/src/components/Navbar';
 import './Home.css';
 export default function Home({ onNavigate }) {
   return (

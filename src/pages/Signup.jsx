@@ -1,39 +1,27 @@
-import { useState } from 'react';
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js';
-import { getAuth, createUserWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js';
-import { getFirestore, doc, setDoc } from 'https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js';
-import './Login.css';
-
-// Firebase Config
-const firebaseConfig = {
-  apiKey: 'AIzaSyCIK3C5qAOUZUtUixX1knFRSkXAYXOCDaA',
-  authDomain: 'primesmshub-c0f58.firebaseapp.com',
-  projectId: 'primesmshub-c0f58',
-  storageBucket: 'primesmshub-c0f58.firebasestorage.app',
-  messagingSenderId: '40273399506',
-  appId: '1:40273399506:web:349a116c082d830987a70b',
-};
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
+// src/pages/Signup.jsx
+import React, { useState } from 'react';
+import { auth, db } from '../firebasejs/config';  // Changed from '/firebasejs/config'
+import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import Navbar from '/src/components/Navbar';  // Changed from '/components/Navbar'
+import './Signup.css';
 
 export default function Signup({ onNavigate }) {
   const [formData, setFormData] = useState({
-    name: '',
+    fullName: '',
     email: '',
-    phone: '',
     password: '',
     confirmPassword: '',
+    phone: ''
   });
-
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleChange = (e) => {
-    const { id, value } = e.target;
-    setFormData((prev) => ({ ...prev, [id]: value }));
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    });
   };
 
   const handleSignup = async (e) => {
@@ -41,141 +29,176 @@ export default function Signup({ onNavigate }) {
     setError('');
     setLoading(true);
 
-    const { name, email, phone, password, confirmPassword } = formData;
-
-    // Validation
-    if (!name.trim() || !email.trim() || !password || !confirmPassword) {
-      setError('Please fill in all required fields');
-      setLoading(false);
-      return;
-    }
-
-    if (password !== confirmPassword) {
+    if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
       setLoading(false);
       return;
     }
 
-    if (password.length < 6) {
+    if (formData.password.length < 6) {
       setError('Password must be at least 6 characters');
       setLoading(false);
       return;
     }
 
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const userCredential = await createUserWithEmailAndPassword(
+        auth, 
+        formData.email, 
+        formData.password
+      );
+      
       const user = userCredential.user;
 
-      // Save user data to Firestore
-      await setDoc(doc(db, 'users', user.uid), {
-        fullName: name,
-        email: email,
-        phone: phone || '',
-        country: '',
-        address: '',
-        wallet: 0,
-        createdAt: new Date(),
+      await updateProfile(user, {
+        displayName: formData.fullName
       });
 
-      alert('You have signed up successfully! ✅\n\nWelcome to PrimeSmsHub!');
-      onNavigate('home');
-      // window.location.href = 'dashboard.html'; // Uncomment if you have a dashboard page
+      const userRef = doc(db, 'users', user.uid);
+      await setDoc(userRef, {
+        fullName: formData.fullName,
+        email: formData.email,
+        phone: formData.phone || '',
+        wallet: 0,
+        createdAt: serverTimestamp(),
+        lastLogin: serverTimestamp(),
+        emailVerified: user.emailVerified,
+        uid: user.uid
+      });
+
+      // Navigate to login
+      if (onNavigate) {
+        onNavigate('login');
+      }
     } catch (err) {
-      console.error(err);
-      setError(err.message || 'Failed to create account');
+      console.error('Signup error:', err);
+      
+      switch (err.code) {
+        case 'auth/email-already-in-use':
+          setError('Email already in use. Please login instead.');
+          break;
+        case 'auth/invalid-email':
+          setError('Invalid email address');
+          break;
+        case 'auth/weak-password':
+          setError('Password is too weak');
+          break;
+        default:
+          setError('Failed to create account. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <main className="login-container">
-      <div className="login">
-        <div className="logo">
-          <img src="/hero.png" alt="Logo" />
-        </div>
+    <>
+      <Navbar onNavigate={onNavigate} />
+      <div className="signup-container">
+        <div className="signup-card">
+          <div className="signup-header">
+            <img src="/hero.png" alt="PrimeSmsHub" className="signup-logo" />
+            <h2>Create Account</h2>
+            <p>Join PrimeSmsHub today</p>
+          </div>
 
-        <h1>Welcome! 👋</h1>
-        <h2>Create your account</h2>
+          {error && (
+            <div className="error-message">
+              ⚠️ {error}
+            </div>
+          )}
 
-        {error && <div className="error-message">{error}</div>}
-
-          <form onSubmit={handleSignup}>
-            <div className="input-area">
-              <div className="input-field">
-                <label htmlFor="name">Full Name</label>
-                <input
-                  type="text"
-                  id="name"
-                  placeholder="Your name"
-                  value={formData.name}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
-
-              <div className="input-field">
-                <label htmlFor="email">Email</label>
-                <input
-                  type="email"
-                  id="email"
-                  placeholder="Your email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
-
-              <div className="input-field">
-                <label htmlFor="phone">Phone Number</label>
-                <input
-                  type="text"
-                  id="phone"
-                  placeholder="Your phone number"
-                  value={formData.phone}
-                  onChange={handleChange}
-                />
-              </div>
-
-              <div className="input-field">
-                <label htmlFor="password">Password</label>
-                <input
-                  type="password"
-                  id="password"
-                  placeholder="At least 6 characters"
-                  value={formData.password}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
-
-              <div className="input-field">
-                <label htmlFor="confirmPassword">Confirm Password</label>
-                <input
-                  type="password"
-                  id="confirmPassword"
-                  placeholder="Confirm password"
-                  value={formData.confirmPassword}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
+          <form onSubmit={handleSignup} className="signup-form">
+            <div className="form-group">
+              <label>Full Name</label>
+              <input
+                type="text"
+                name="fullName"
+                placeholder="Enter your full name"
+                value={formData.fullName}
+                onChange={handleChange}
+                required
+                disabled={loading}
+              />
             </div>
 
-            <div className="auth-button">
-              <button type="submit" className="btn" disabled={loading}>
-                {loading ? 'Creating Account...' : 'Register Now'}
-              </button>
+            <div className="form-group">
+              <label>Email Address</label>
+              <input
+                type="email"
+                name="email"
+                placeholder="Enter your email"
+                value={formData.email}
+                onChange={handleChange}
+                required
+                disabled={loading}
+              />
             </div>
 
-            <p>
-              Already have an account?{' '}
-              <a href="#" onClick={() => onNavigate('login')}>
-                Login Here
-              </a>
-            </p>
+            <div className="form-group">
+              <label>Phone Number (Optional)</label>
+              <input
+                type="tel"
+                name="phone"
+                placeholder="Enter your phone number"
+                value={formData.phone}
+                onChange={handleChange}
+                disabled={loading}
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Password</label>
+              <input
+                type="password"
+                name="password"
+                placeholder="Create a password"
+                value={formData.password}
+                onChange={handleChange}
+                required
+                disabled={loading}
+                minLength="6"
+              />
+              <small>Must be at least 6 characters</small>
+            </div>
+
+            <div className="form-group">
+              <label>Confirm Password</label>
+              <input
+                type="password"
+                name="confirmPassword"
+                placeholder="Confirm your password"
+                value={formData.confirmPassword}
+                onChange={handleChange}
+                required
+                disabled={loading}
+              />
+            </div>
+
+            <div className="form-checkbox">
+              <input type="checkbox" id="terms" required />
+              <label htmlFor="terms">
+                I agree to the <a href="/terms">Terms of Service</a> and <a href="/privacy">Privacy Policy</a>
+              </label>
+            </div>
+
+            <button 
+              type="submit" 
+              className="signup-button" 
+              disabled={loading}
+            >
+              {loading ? 'Creating Account...' : 'Sign Up'}
+            </button>
           </form>
+
+          <div className="signup-footer">
+            <p>Already have an account? <span 
+              onClick={() => onNavigate && onNavigate('login')}
+              style={{ color: '#667eea', cursor: 'pointer', fontWeight: 'bold' }}
+            >Login</span></p>
+          </div>
         </div>
-      </main>
+      </div>
+    </>
   );
 }
