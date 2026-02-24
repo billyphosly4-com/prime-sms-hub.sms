@@ -257,7 +257,7 @@ body {
 }
 
 
-.btn {
+.btno {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   border: none;
@@ -270,17 +270,17 @@ body {
   transition: transform 0.2s, opacity 0.2s;
 }
 
-.btn:hover {
+.btno:hover {
   transform: translateY(-2px);
   opacity: 0.9;
 }
 
-.btn:disabled {
+.btno:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-.btn-small {
+.btno-small {
   background: #17a2b8;
   color: white;
   border: none;
@@ -292,7 +292,7 @@ body {
   transition: background 0.2s;
 }
 
-.btn-small:hover {
+.btno-small:hover {
   background: #138496;
 }
 

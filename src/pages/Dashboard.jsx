@@ -377,7 +377,7 @@ const Dashboard = ({ onNavigate, user }) => {  // Add onNavigate and user props
               </div>
               <button
                 type="button"
-                className="btn"
+                className="btn0"
                 onClick={handlePaystackPayment}
                 disabled={loading}
               >
@@ -390,21 +390,21 @@ const Dashboard = ({ onNavigate, user }) => {  // Add onNavigate and user props
           <div className="card">
             <h3>🚀 Quick Actions</h3>
             <button
-              className="btn"
+              className="btno"
               onClick={() => handleNavigation('buy-numbers')}
               style={{ marginBottom: '10px', background: '#28a745' }}
             >
               Buy Number Now
             </button>
             <button
-              className="btn"
+              className="btno"
               onClick={() => handleNavigation('usa-numbers')}
               style={{ marginBottom: '10px', background: '#17a2b8' }}
             >
               View Pricing
             </button>
             <button
-              className="btn"
+              className="btno"
               onClick={() => handleNavigation('support')}
               style={{ background: '#6c757d' }}
             >
@@ -464,7 +464,7 @@ const Dashboard = ({ onNavigate, user }) => {  // Add onNavigate and user props
             </select>
           </div>
           <button
-            className="btn"
+            className="btno"
             onClick={handleBuyNumber}
             disabled={loading || !selectedService}
             style={{ background: '#007bff' }}
@@ -519,7 +519,7 @@ const Dashboard = ({ onNavigate, user }) => {  // Add onNavigate and user props
             </div>
             {transactions.length > 10 && (
               <button 
-                className="btn"
+                className="btno"
                 onClick={() => handleNavigation('transactions')}
                 style={{ marginTop: '20px', background: '#6c757d' }}
               >
