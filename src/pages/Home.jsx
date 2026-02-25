@@ -73,7 +73,7 @@ export default function Home({ onNavigate }) {
         </section>
 
         <section className="container">
-          <div className="container-content">
+          <div className="container-contents">
             <h2>Get started for free</h2>
             <p>The service we offer is designed to meet your business needs.</p>
             <a className="btn success" href="/signup">

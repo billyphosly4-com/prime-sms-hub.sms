@@ -35,6 +35,7 @@ html {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+   background: linear-gradient(135deg, var(--primary) 0%, #0052cc 100%);
 }
 
 .preloader {
@@ -311,7 +312,7 @@ margin-top: 0;
   padding: 30px 24px;
   margin: 0;
   border-radius: 12px;
-  background: white;
+ background: linear-gradient(135deg, var(--primary) 0%, #0052cc 100%);
 }
 
 .blog-card {
@@ -378,9 +379,10 @@ margin-top: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
+
 }
 
-.container-content {
+.container-contents {
   background: linear-gradient(135deg, var(--primary) 0%, #0052cc 100%);
   padding: 60px 40px;
   border-radius: 12px;
@@ -390,14 +392,14 @@ margin-top: 0;
   box-shadow: var(--shadow-lg);
 }
 
-.container-content h2 {
+.container-contents h2 {
   font-size: 32px;
   font-weight: 700;
   margin-bottom: 12px;
   color: white;
 }
 
-.container-content p {
+.container-contents p {
   font-size: 16px;
   margin-bottom: 24px;
   color: white;
@@ -405,14 +407,14 @@ margin-top: 0;
 }
 
 
-.container-content img {
+.container-contents img {
   width: 200px;
   height: auto;
   margin-top: 20px;
   border-radius: 8px;
 }
 
-.container-content .btn {
+.container-contents .btn {
   margin-top: 20px;
 }
 
@@ -423,6 +425,7 @@ margin-top: 0;
   color: #e5e7eb;
   width: 100%;
   padding: 60px 20px 25px;
+  margin-top:10px;
 }
 
 /* center content like modern dashboards */

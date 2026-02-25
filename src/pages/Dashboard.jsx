@@ -290,9 +290,9 @@ const Dashboard = ({ onNavigate, user }) => {  // Add onNavigate and user props
       )}
 
       {/* Main Content */}
-      <div className="container">
+      <div className="carlos">
         {/* Hero Section */}
-        <div className="hero">
+        <div className="heros">
           <h1>Welcome, <span>{userData.fullName}</span>! 👋</h1>
           <p>Verify more for less with virtual phone numbers</p>
           <div className="wallet-amount">
@@ -377,7 +377,7 @@ const Dashboard = ({ onNavigate, user }) => {  // Add onNavigate and user props
               </div>
               <button
                 type="button"
-                className="btn0"
+                className="btno"
                 onClick={handlePaystackPayment}
                 disabled={loading}
               >

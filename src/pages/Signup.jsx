@@ -83,8 +83,7 @@ export default function Signup({ onNavigate }) {
         case 'auth/weak-password':
           setError('Password is too weak');
           break;
-        default:
-          setError('Failed to create account. Please try again.');
+        
       }
     } finally {
       setLoading(false);
