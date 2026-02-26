@@ -100,7 +100,7 @@ app.get('/api/5sim/check-sms/:id', (req, res) => {
 // ==================== PAYSTACK MOCK API ====================
 app.get('/paystack-public-key', (req, res) => {
   res.json({
-    publicKey: process.env.PAYSTACK_PUBLIC_KEY || 'pk_live_639470fbe710a9b3503068dd875e4b027bd096fe'
+    publicKey: process.env.PAYSTACK_PUBLIC_KEY || 'pk_live_a0465f4104c57a61aa78866451b64a7bcf39a4bd'
   });
 });
 
