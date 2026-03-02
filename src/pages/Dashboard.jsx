@@ -1,5 +1,6 @@
 // dashboard.jsx
 import React, { useState, useEffect } from 'react';
+import Navbar from '/src/components/Navbar';
 import { auth, db } from '../firebasejs/config';
 import { signOut } from 'firebase/auth';
 import {
@@ -23,6 +24,7 @@ const KES_TO_USD_RATE = 0.0077;
 const Dashboard = ({ onNavigate, user }) => {
   // ==================== STATE VARIABLES ====================
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(typeof window !== 'undefined' ? window.innerWidth >= 768 : true);
   const [currentUser, setCurrentUser] = useState(null);
   const [userData, setUserData] = useState({ 
     fullName: 'User', 
@@ -61,6 +63,9 @@ const Dashboard = ({ onNavigate, user }) => {
   const [telegramCode, setTelegramCode] = useState('');
   const [showTelegramModal, setShowTelegramModal] = useState(false);
   const [telegramLoading, setTelegramLoading] = useState(false);
+  const [keyStatus, setKeyStatus] = useState(null);
+  const [keyLoading, setKeyLoading] = useState(false);
+  const [keyError, setKeyError] = useState(null);
   
   // Payment states
   const [amount, setAmount] = useState('');
@@ -69,6 +74,17 @@ const Dashboard = ({ onNavigate, user }) => {
   const [paymentLoading, setPaymentLoading] = useState(false);
 
   // ==================== HELPER FUNCTIONS ====================
+  useEffect(() => {
+    const onResize = () => {
+      const desktop = window.innerWidth >= 768;
+      setIsDesktop(desktop);
+      // Open sidebar on desktop for a persistent navigation drawer, close on mobile
+      setSidebarOpen(desktop);
+    };
+    window.addEventListener('resize', onResize);
+    onResize();
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
   const formatDate = (date) => {
     if (!date) return 'N/A';
     return new Date(date).toLocaleDateString('en-US', {
@@ -294,6 +310,20 @@ const Dashboard = ({ onNavigate, user }) => {
     }
   };
 
+  const fetchKeyStatus = async () => {
+    setKeyLoading(true);
+    setKeyError(null);
+    try {
+      const resp = await axios.get(`${BACKEND_URL}/api/5sim/key-status`);
+      setKeyStatus(resp.data || null);
+    } catch (err) {
+      setKeyError(err.message || 'Could not fetch key status');
+      setKeyStatus(null);
+    } finally {
+      setKeyLoading(false);
+    }
+  };
+
   // ==================== 5SIM INTEGRATION ====================
   const loadCountries = async () => {
     setLoading(true);
@@ -315,6 +345,7 @@ const Dashboard = ({ onNavigate, user }) => {
           image: getCountryFlag(key.toLowerCase())
         }));
         setCountries(countryList);
+        return countryList;
       }
     } catch (error) {
       console.warn('Backend not available, using fallback countries');
@@ -327,8 +358,30 @@ const Dashboard = ({ onNavigate, user }) => {
         { code: 'nigeria', name: 'Nigeria', image: '🇳🇬' }
       ];
       setCountries(fallbackCountries);
+      return fallbackCountries;
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openBuyNumbers = async () => {
+    setLoading(true);
+    try {
+      // Ensure countries are loaded (returns list)
+      const list = countries.length > 0 ? countries : await loadCountries();
+      const chosen = list && list.length > 0 ? list[0] : null;
+      if (chosen) {
+        setSelectedCountry(chosen.code);
+        setSelectedCountryData(chosen);
+        await loadServices(chosen.code);
+      }
+      setCurrentPage('service-selection');
+    } catch (err) {
+      console.warn('Could not open buy numbers:', err);
+      setCurrentPage('service-selection');
+    } finally {
+      setLoading(false);
+      setSidebarOpen(false);
     }
   };
 
@@ -527,88 +580,71 @@ const Dashboard = ({ onNavigate, user }) => {
   const verifyPayment = async (txId, amount, currency) => {
     try {
       setPaymentLoading(true);
-      
-      // Convert amount to USD if payment was in KES
-      let usdAmount = amount;
-      if (currency === 'KES') {
-        usdAmount = amount * KES_TO_USD_RATE;
+
+      // Verify payment with backend (server verifies with Paystack secret)
+      let verifiedAmount = amount;
+      let verifiedCurrency = currency;
+      try {
+        const resp = await axios.get(`${BACKEND_URL}/paystack/verify/${encodeURIComponent(txId)}`);
+        // If Paystack returned a standard response, normalize values
+        if (resp.data && resp.data.status === 'success' && resp.data.data) {
+          const pd = resp.data.data;
+          // Paystack amount is usually in kobo (amount * 100)
+          if (pd.amount !== undefined && typeof pd.amount === 'number') {
+            verifiedAmount = Number(pd.amount) / 100;
+          }
+          verifiedCurrency = pd.currency || verifiedCurrency;
+        }
+      } catch (verifyErr) {
+        console.warn('Backend paystack verify failed, falling back to provided amount:', verifyErr.message || verifyErr);
       }
-      
-      console.log("💰 Processing payment:", { amount, currency, usdAmount });
-      
+
+      // Convert amount to USD if payment was in KES
+      let usdAmount = Number(verifiedAmount || 0);
+      if (verifiedCurrency === 'KES') usdAmount = usdAmount * KES_TO_USD_RATE;
+
       // Resolve uid and get current wallet from Firestore (fallback to local state)
       const uid = currentUser?.uid || user?.uid;
-      if (!uid) {
-        throw new Error('User not authenticated');
-      }
+      if (!uid) throw new Error('User not authenticated');
       const userRef = doc(db, 'users', uid);
       const userSnap = await getDoc(userRef);
 
       let currentWallet = 0;
-      if (userSnap.exists()) {
-        currentWallet = userSnap.data().wallet || userData.wallet || 0;
-      } else {
-        currentWallet = userData.wallet || 0;
-      }
+      if (userSnap.exists()) currentWallet = userSnap.data().wallet || userData.wallet || 0;
+      else currentWallet = userData.wallet || 0;
 
-      // Calculate new wallet balance
       const newWallet = Number((currentWallet + usdAmount).toFixed(2));
-      console.log("New wallet balance:", newWallet);
-      
-      // 1. FIRST: Update wallet in Firestore
-      await updateDoc(userRef, { 
-        wallet: newWallet,
-        lastUpdated: serverTimestamp()
-      });
-      console.log("✅ Wallet updated to:", newWallet);
-      
-      // 2. THEN: Add transaction record
+
+      // Update wallet and add transaction in Firestore
+      await updateDoc(userRef, { wallet: newWallet, lastUpdated: serverTimestamp() });
       const transactionRef = await addDoc(collection(db, 'transactions'), {
-        uid: uid,
+        uid,
         amount: usdAmount,
-        originalAmount: amount,
-        originalCurrency: currency,
+        originalAmount: verifiedAmount,
+        originalCurrency: verifiedCurrency,
         currency: 'USD',
         txId,
         type: 'credit',
         status: 'success',
-        description: `Wallet funded via Paystack (${amount} ${currency})`,
+        description: `Wallet funded via Paystack (${verifiedAmount} ${verifiedCurrency})`,
         createdAt: serverTimestamp()
       });
-      console.log("✅ Transaction added:", transactionRef.id);
 
-      // Append transaction id to user's document
       try {
-        await updateDoc(userRef, {
-          transactions: arrayUnion(transactionRef.id),
-          lastTransactionAt: serverTimestamp()
-        });
+        await updateDoc(userRef, { transactions: arrayUnion(transactionRef.id), lastTransactionAt: serverTimestamp() });
       } catch (err) {
         console.warn('Could not append transaction to user doc:', err);
       }
 
-      // Update local state immediately
-      setUserData(prev => ({ 
-        ...prev, 
-        wallet: newWallet 
-      }));
-      try {
-        const outUid = currentUser?.uid || user?.uid;
-        if (outUid) localStorage.setItem(`wallet_${outUid}`, String(newWallet));
-      } catch (err) {
-        // ignore
-      }
-      
-      alert(`✅ Wallet funded with $${usdAmount.toFixed(2)} USD (${amount} ${currency})`);
-      
-      // Clear form
-      setAmount('');
-      setPhoneNumber('');
-      setCurrency('USD');
-      
+      setUserData(prev => ({ ...prev, wallet: newWallet }));
+      try { const outUid = currentUser?.uid || user?.uid; if (outUid) localStorage.setItem(`wallet_${outUid}`, String(newWallet)); } catch (e) {}
+
+      alert(`✅ Wallet funded with $${usdAmount.toFixed(2)} USD (${verifiedAmount} ${verifiedCurrency})`);
+      setAmount(''); setPhoneNumber(''); setCurrency('USD');
+
     } catch (error) {
       console.error('Payment error:', error);
-      alert('Error processing payment: ' + error.message);
+      alert('Error processing payment: ' + (error.message || 'Unknown'));
     } finally {
       setPaymentLoading(false);
     }
@@ -814,6 +850,24 @@ const Dashboard = ({ onNavigate, user }) => {
     setSidebarOpen(false);
   };
 
+  // dashboard-level navigation wrapper passed to Navbar so desktop buttons control this page
+  const dashboardNavigate = (page) => {
+    // For internal dashboard pages, just update local state so we don't trigger
+    // parent-level navigation which may route away from the dashboard.
+    const internalPages = ['dashboard','fund-wallet','transactions','my-orders','buy-numbers','usa-numbers','support','service-selection','service-selection'];
+    setSidebarOpen(false);
+    if (internalPages.includes(page)) {
+      setCurrentPage(page);
+      return;
+    }
+
+    // Otherwise, forward to parent navigation if provided
+    setCurrentPage(page);
+    if (onNavigate) {
+      try { onNavigate(page); } catch (e) {}
+    }
+  };
+
   // ==================== RENDER FUNCTIONS ====================
   const renderDashboardContent = () => (
     <>
@@ -846,7 +900,14 @@ const Dashboard = ({ onNavigate, user }) => {
           <h1>Welcome back, <span className="user-name">{userData.fullName}</span>! 👋</h1>
           <p>Select a country below to get started with virtual numbers</p>
         </div>
-        <div className="dashboard-wallet-info">
+        <div
+          className="dashboard-wallet-info"
+          role="button"
+          tabIndex={0}
+          onClick={() => { setCurrentPage('fund-wallet'); setSidebarOpen(false); }}
+          onKeyDown={(e) => { if (e.key === 'Enter') { setCurrentPage('fund-wallet'); setSidebarOpen(false); } }}
+          style={{ cursor: 'pointer' }}
+        >
           <div className="dashboard-wallet-balance">
             <span className="label">Wallet Balance</span>
             <span className="amount">${(userData.wallet || 0).toFixed(2)}</span>
@@ -981,6 +1042,9 @@ const Dashboard = ({ onNavigate, user }) => {
 
   const renderFundContent = () => (
     <div className="dashboard-fund-page">
+      <button className="dashboard-back-button" onClick={() => setCurrentPage('dashboard')}>
+        ← Back
+      </button>
       <h2>💳 Fund Your Wallet</h2>
       <div className="dashboard-fund-card">
         <div className="dashboard-fund-form">
@@ -1016,24 +1080,31 @@ const Dashboard = ({ onNavigate, user }) => {
 
   return (
     <div className="dashboard-page">
-      {/* Header */}
-      <div className="dashboard-header">
-        <div className="dashboard-menu-icon" onClick={() => setSidebarOpen(true)}>☰</div>
-        <div className="dashboard-logo">
-          <img src="/hero.png" alt={APP_NAME} />
-          <span>{APP_NAME}</span>
-        </div>
-        <div className="dashboard-header-right">
-          <button className="dashboard-wallet-btn">
-            💰 ${(userData.wallet || 0).toFixed(2)}
-          </button>
-          <div className="user-menu">
-            <button className="dashboard-profile-btn">
-              {userData.fullName?.charAt(0).toUpperCase()}
+      {/* Header: show custom Navbar on desktop, compact header on mobile */}
+      {isDesktop ? (
+        <Navbar onNavigate={dashboardNavigate} user={currentUser || user} />
+      ) : (
+        <div className="dashboard-header">
+          <div className="dashboard-menu-icon" onClick={() => setSidebarOpen(true)}>☰</div>
+          <div className="dashboard-logo">
+            <img src="/hero.png" alt={APP_NAME} />
+            <span>{APP_NAME}</span>
+          </div>
+          <div className="dashboard-header-right">
+            <button
+              className="dashboard-wallet-btn"
+              onClick={() => { setCurrentPage('fund-wallet'); setSidebarOpen(false); }}
+            >
+              💰 ${(userData.wallet || 0).toFixed(2)}
             </button>
+            <div className="user-menu">
+              <button className="dashboard-profile-btn">
+                {userData.fullName?.charAt(0).toUpperCase()}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Sidebar */}
       <aside className={`dashboard-sidebar ${sidebarOpen ? 'open' : ''}`}>
@@ -1050,7 +1121,7 @@ const Dashboard = ({ onNavigate, user }) => {
               </a>
             </li>
             <li>
-              <a href="#" onClick={(e) => { e.preventDefault(); handleNavigation('buy-numbers'); }}>
+              <a href="#" onClick={(e) => { e.preventDefault(); openBuyNumbers(); }}>
                 <span>📱</span>Buy Number
               </a>
             </li>
@@ -1249,6 +1320,24 @@ const Dashboard = ({ onNavigate, user }) => {
             <div className="support-content">
               <p>Contact us at: support@{APP_NAME.toLowerCase()}.com</p>
               <p>Telegram: @{APP_NAME}Bot</p>
+              <div className="keys-section">
+                <h3>🔑 5sim Key Status</h3>
+                <p>These keys are used server-side to access 5sim features: fetching countries, listing services, buying numbers, and checking SMS. Keys are never shown here.</p>
+                <button className="dashboard-btn" onClick={fetchKeyStatus} disabled={keyLoading}>
+                  {keyLoading ? 'Checking...' : 'Check 5sim Key Status'}
+                </button>
+                {keyError && <div className="dashboard-error">Error: {keyError}</div>}
+                {keyStatus && (
+                  <div className="keys-status">
+                    <p><strong>Protocol key configured:</strong> {keyStatus.protocolConfigured ? 'Yes' : 'No'}</p>
+                    <p><strong>Deprecated key configured:</strong> {keyStatus.oldConfigured ? 'Yes' : 'No'}</p>
+                    <ul>
+                      <li><strong>Protocol key:</strong> Preferred server-side key for 5sim API access.</li>
+                      <li><strong>Deprecated key:</strong> Optional fallback for legacy integrations; rotate and remove after migration.</li>
+                    </ul>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}

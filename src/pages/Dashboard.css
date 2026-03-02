@@ -873,3 +873,41 @@
     font-size: 22px;
   }
 }
+
+/* Fund page styles */
+.dashboard-fund-page {
+  background: white;
+  border-radius: 12px;
+  padding: 30px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+  max-width: 520px;
+  margin: 30px auto;
+}
+.dashboard-fund-card {
+  padding: 20px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
+  border: 1px solid #eef3ff;
+}
+.dashboard-fund-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.dashboard-fund-form input,
+.dashboard-fund-form select {
+  padding: 12px;
+  border: 1px solid #e6eefc;
+  border-radius: 8px;
+  font-size: 14px;
+}
+.dashboard-pay-btn {
+  padding: 12px 18px;
+  border-radius: 10px;
+  background: linear-gradient(90deg,#667eea 0%,#764ba2 100%);
+  color: #fff;
+  border: none;
+  font-weight: 700;
+  cursor: pointer;
+}
+.dashboard-pay-btn:disabled { opacity: 0.6; cursor: not-allowed; }

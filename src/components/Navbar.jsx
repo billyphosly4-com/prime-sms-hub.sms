@@ -58,6 +58,12 @@ export default function Navbar({ onNavigate, user = null }) {
             // User is logged in - show dashboard and logout
             <>
               <button
+                className="btn fund"
+                onClick={() => onNavigate && onNavigate('fund-wallet')}
+              >
+                Fund Wallet
+              </button>
+              <button
                 className="btn secondary"
                 onClick={handleDashboardClick}
               >

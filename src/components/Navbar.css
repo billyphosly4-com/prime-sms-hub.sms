@@ -41,6 +41,16 @@
   gap: 12px;
 }
 
+.btn.fund {
+  background: linear-gradient(90deg, #ffb347 0%, #ffcc33 100%);
+  color: #333;
+}
+
+.btn.fund:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(255,184,71,0.25);
+}
+
 .btn {
   padding: 10px 24px;
   border-radius: 8px;
